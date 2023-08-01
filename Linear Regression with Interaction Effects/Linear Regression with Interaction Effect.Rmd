@@ -1,0 +1,204 @@
+---
+title: "Linear Regression with Interaction Effects"
+author: Ashley
+output: html_document
+date: "2022-11-11"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Employment Discrimination
+The dataset on EmploymentDiscrimination.csv file presents data from the case of
+United States Department of the Treasury v. Harris Trust and Savings Bank
+(1981). The data includes the salary of 93 employees of the bank (SALARY),
+their education level (EDUCAT), and their gender (GENDER).
+
+```{r}
+library(ggplot2)
+library(readr)
+EmploymentDiscrimination <- read_csv("EmploymentDiscrimination.csv")
+```
+
+## a) Create a multiple regression model using Salary as the regressand and education level and gender as the regressors. Use Male as the dummy variable.
+```{r}
+Salary <- EmploymentDiscrimination$SALARY
+Edu <- EmploymentDiscrimination$EDUCAT
+Male_dummy <- ifelse(EmploymentDiscrimination$GENDER == "MALE", 1, 0)
+
+model_31 <- lm(Salary ~ Edu + Male_dummy)
+```
+
+
+## b) Interpret the differential intercept coefficient and the parameter estimate of the education level. Assess whether or not there is evidence of employment discrimination at the Harris bank.
+```{r}
+summary(model_31)
+```
+
+The value intercept of the model represents mean salary of females, which is $4173.13, holding the education level constant.  
+The coefficient of Edu means that as education level goes up by 1, the estimated salary of the person increases $80.70, regardless of the person's gender.  
+According to the results of the linear regression, holding the education level constant, the mean salary of males is estimated to be $691.81 higher than the mean salary of females at any reasonable significance level. There appears to be a gender discrimination. 
+
+
+## c) Test for interaction between gender and education. Assess the effect of gender on salary depend on the level of education
+```{r}
+model_32 <- lm(Salary ~ Edu + Male_dummy + Edu*Male_dummy)
+summary(model_32)
+```
+
+The coefficient of the interaction term is positive, though it's not significant, which indicates that the difference in average salaries increase between two groups as education increases.
+
+
+## d) Create a plot with the two regressions one for male and another for female and determine the type of the regressions (parallel, coincident, dissimilar, or concurrent?)
+```{r}
+model_32_coeff <- coef(model_32)
+model_32_coeff
+```
+
+
+```{r}
+plot(EmploymentDiscrimination$SALARY~EmploymentDiscrimination$EDUCAT, EmploymentDiscrimination, pch=16, 
+     col=as.numeric(as.factor(EmploymentDiscrimination$GENDER))+1, 
+     xlim = c(0, 20),
+     main = "Interaction Plot",
+     xlab = "Education Level",
+     ylab = "Salary")
+abline(a = model_32_coeff[1], b = model_32_coeff[2], col = 2)
+abline(a = model_32_coeff[1] + model_32_coeff[3], b = model_32_coeff[2] + model_32_coeff[4], col = 3)
+legend("bottomright", levels(as.factor(EmploymentDiscrimination$GENDER)), 
+       pch=11, 
+       lwd=1, 
+       col=2:3,
+       cex = 0.5)
+```
+
+The plot above tells that the two regressions are dissimilar because they do not share a similar intercept nor a similar slope. 
+
+
+## e) Assess the difference between the two models above? 
+```{r}
+summary(model_31)
+summary(model_32)
+```
+
+Individual t-tests  
+---------------------------------------
+For the original model:  
+For Edu:  
+$H_0$: $β_1$ = 0  
+$H_1$: $β_1$ ≠ 0  
+p-value is 0.00447 < 0.01  
+Reject the null hypothesis. Edu is significant.  
+  
+For Male_dummy:  
+$H_0$: $β_1$ = 0  
+$H_1$: $β_1$ ≠ 0  
+p-value is 1.09e-06 < 0.01  
+Reject the null hypothesis. Male_dummy is significant.  
+  
+---------------------------------------
+  
+For the model with interaction:  
+For Edu:  
+$H_0$: $β_1$ = 0  
+$H_1$: $β_1$ ≠ 0  
+p-value is 0.0549 > 0.05  
+Fail to reject the null hypothesis. Edu is not significant.  
+  
+For Male_dummy:  
+$H_0$: $β_1$ = 0  
+$H_1$: $β_1$ ≠ 0  
+p-value is 0.7460 > 0.05  
+Fail to reject the null hypothesis. Male_dummy is not significant.  
+  
+For Edu:Male_dummy:  
+$H_0$: $β_1$ = 0  
+$H_1$: $β_1$ ≠ 0  
+p-value is 0.2503 > 0.05  
+Fail to reject the null hypothesis. Edu:Male_dummy is not significant. 
+  
+---------------------------------------
+  
+The apparent difference between the two models is whether included the interaction term of the two dummy variables.  
+The overall model validity of the two models are both extremely significant.  
+The adjusted R-squared of the model including the interaction term is slightly higher than the original model.  
+But the coefficients of Male dummy variable and the interaction term are both insignificant. It indicates that there is no significant interaction effects between gender and education level on one's salary.
+
+
+## f) Run a partial F-test to assess the significance of the gender dummy and the interaction term.
+$H_0$: The reduced model and the full model do not differ significantly.  
+$H_1$: The full model is significantly better.
+```{r}
+model_33 <- lm(Salary ~ Edu)
+r <- anova(model_33)
+f <- anova(model_32)
+
+SSE_reduced <- r$`Sum Sq`[2]
+SSE_full <- f$`Sum Sq`[4]
+MSE_full <- f$`Mean Sq`[4]
+
+num <- (SSE_reduced - SSE_full) / 2
+den <- MSE_full
+
+Partial_F_stat <- num/den
+
+pf(Partial_F_stat, 2, length(Salary) - 3 - 1, lower.tail = F)
+```
+
+The p-value of the F-test is extremely small, by which we can reject the null hypothesis at any reasonable significance level. It means the full model is significantly better.
+
+
+## g) Explain the confliction between the individual t-test and the Partial F-test.
+Individual t-test can only assess variables separately while partial F-test is able to evaluate the joint effectiveness of the interested items. In this case, an interaction term and one of its component is interested. So the evaluation of the joint effectiveness is naturally important, which means the result of partial F-test is more reliable. I would settle with the full model.
+
+
+# Video Conferencing Vendor
+Before purchasing videoconferencing equipment, a company ran tests of its current internal computer network. The goal of the tests was to measure how rapidly data moved through the network given the current demand on the network. Eighty files ranging in size from 20 to 100 megabytes (MB) were transmitted over the network at randomly chosen times of day, and the time to send the files (in seconds) recorded. Two types of software were used to transfer the files, identified by the column labeled Vendor in the data table. The two possible values are "MS" and "NP". 
+```{r}
+rm(list = ls())
+Downloads <- read.csv("Downloads.csv")
+```
+
+## a) Compare the download times produced by the two vendors using an analysis of covariance that takes account of the differences in file sizes.
+```{r}
+Time <- Downloads$Transfer.Time..secs.
+Size <- Downloads$File.Size..MB.
+MS_dummy <- ifelse(Downloads$Vendor == "MS", 1, 0)
+
+model_41 <- lm(Time ~ Size + MS_dummy)
+summary(model_41)
+```
+
+The results indicate that when holding the size of the file constant, the mean download time of MS is 5.54 seconds shorter than the mean download time of NP. And when holding the vendors constant, a 1 MB increase in size is estimated to result in an increase of 0.31 second of download time.
+
+## b) Assess whether or not there is an effect of file size on transfer time different for each vendor.
+```{r}
+model_42 <- lm(Time ~ Size + MS_dummy + Size*MS_dummy)
+summary(model_42)
+```
+
+According to the result table above, the effects of file size on transfer time are different for each vendor. The interaction term of size of the file and the vendor is -0.18 and it is significant at any reasonable significance level. It indicates that as the file size goes up by 1 MB, the increase in transfer time for MS is 0.18 second shorter than it is for NP.
+
+```{r}
+DL_MS <- subset(Downloads, Downloads$Vendor == "MS")
+DL_NP <- subset(Downloads, Downloads$Vendor == "NP")
+
+plot(Downloads$File.Size..MB., Downloads$Transfer.Time..secs., 
+     main = "Interaction Plot",
+     xlab = "File Size (in MBs)",
+     ylab = "Transfer Time (in seconds)",
+     col = ifelse(Downloads$Vendor == "MS", "blue", "red"))
+legend("topleft", 
+       pch = c(1, 1), 
+       c("NP", "MS"), 
+       col = c("red", "blue"),
+       cex = 0.5)
+abline(lm(DL_NP$Transfer.Time..secs. ~ DL_NP$File.Size..MB.), col = "red")
+abline(lm(DL_MS$Transfer.Time..secs. ~ DL_MS$File.Size..MB.), col = "blue")
+abline(v = 26.5)
+text(x = 33, y = 45, pos = 4, labels = "26.5 MB")
+arrows(x0 = 35, y0 = 44, x1 = 26.5, y1 = 35, lwd = 1)
+```
+
+The interaction plot above clearly shows the performance of the two software in relation to the change in the file size. According to the plot, I would recommend the company to choose MS if the file size of their main transferring job mostly larger than 27 MB and to choose NP if the file size of their main transferring job is smaller than 26 MB. 
