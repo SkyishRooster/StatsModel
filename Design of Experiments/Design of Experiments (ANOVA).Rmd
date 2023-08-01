@@ -1,0 +1,233 @@
+---
+title: "Design of Experiments (ANOVA)"
+author: "Ashley"
+date: "2022-09-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Design of Experiments
+The officers at the Internal Revenue Service (IRS) in the United States and
+Canada Revenue Agency (CRA) are always looking for ways to improve the
+wording and format of its tax return forms. Three new forms have been developed recently. To determine which, if any, are superior to the current form, we can consider three types of experiments. 
+
+1. Complete Random Design (CRD): 120 individuals were asked to participate in an experiment. Each of the 3 new forms and the currently used form were filled out by 30 different people.  
+The amount of time (in minutes) taken by each person to complete the task was recorded and are given in the CSV file IRS 1.
+
+2. Randomized Block Design (RBD): 30 people are asked to fill out all 4 forms.  
+The completion times (in minutes) are recorded and provided in the CSV file IRS 2. 
+
+3. Complete Factorial Design (CFD): 30 taxpayers fill out each of the 4 forms. However, 10 taxpayers in each group are in the lowest income bracket, 10 are in the next income bracket, and the remaining 10 are in the highest bracket.  
+The amount of time (in minutes) needed to complete the returns is recorded and provided on the CSV File IRS 3. The data has the following columns:  
+Column 1: Group Number (1 = Low Income, 2 = Next Income Bracket, 3 = Highest Bracket)  
+Column 2: Times to complete Form 1 (first 10 rows = low income, next 10 rows
+= next income bracket, and last 10 rows = highest bracket)  
+Column 3: Times to complete Form 2 (same format as column 2)  
+Column 4: Times to complete Form 3 (same format as column 2)  
+Column 5: Times to complete Form 4 (same format as column 2)  
+
+Now let's examine on each of the three design of experiments
+
+## Complete Random Design (One-way ANOVA)
+```{r}
+library(readr)
+IRS_1 <- read_csv("IRS 1.csv")
+```
+
+### a) Assess whether or not the normality condition is satisfied
+```{r}
+IRS_1_stacked <- stack(IRS_1)
+names(IRS_1_stacked) <- c("Time", "Form")
+
+Time <- IRS_1_stacked$Time
+Form <- IRS_1_stacked$Form
+
+model_1 <- lm(Time ~ Form)
+resi_1 <- residuals(model_1)
+pred_1 <- predict(model_1)
+```
+
+Formal Test: Anderson-Darling  
+$H_0$: the population is normally distributed  
+$H_1$: the population is not normally distributed
+```{r}
+nortest::ad.test(resi_1)
+```
+Since the p-value of Anderson-Darling normality test is 0.2254, larger than 0.05, we are fail to reject the null hypothesis, which means the normality condition is satisfied.
+
+Informal Test: Histogram
+$H_0$: the population is normally distributed  
+$H_1$: the population is not normally distributed
+```{r}
+hist(resi_1)
+```
+The histogram of residuals is mountain-shaped and also symmetrical, so we can also draw an intuitive conclusion from the histogram that the normality condition is satisfied.
+
+### b) Assess whether or not the equal variances condition is met
+Equal variance test - Levene's test  
+$H_0$: $σ_t$ = $σ_F$  
+$H_1$: $σ_t$ ≠ $σ_F$
+```{r}
+car::leveneTest(Time ~ Form)
+```
+Since the p-value of Levene's Test is 0.969, much larger than 0.05, we can safely conclude that the equal variance condition is satisfied.
+
+Equal variance test - Bartlett's test  
+$H_0$: $σ_t$ = $σ_F$  
+$H_1$: $σ_t$ ≠ $σ_F$
+```{r}
+bartlett.test(Time ~ Form)
+```
+As we can see above, even under the more sensitive test, Bartlett test, the p-value (0.9858) is still much greater than 0.05. Therefore, the equal variance condition is surely satisfied.
+
+Residual vs. Fits plot
+```{r}
+plot(fitted(model_1), resi_1)
+```
+As we can see from the plot, the variance of the residual basically remains constant.
+
+
+### c) Assess whether or not differences exist among the forms
+```{r}
+ANOVA_1 <- aov(Time ~ Form)
+summary(ANOVA_1)
+```
+The p-value of ANOVA is 0.0363, smaller than the significance level, which is 0.05. So we should reject the null hypothesis, which means there are difference(s) in the mean amount of time needed among the four forms.
+
+
+### d) Determine where the differences are
+```{r}
+TukeyHSD(ANOVA_1)
+```
+```{r}
+plot(TukeyHSD(ANOVA_1), las = 1)
+```
+Based on the table and the graph, we found that the difference is between form 1 and form 4, because the relative p-value is 0.048, which is smaller than 0.05, and the interval of "Form4-Form1" doesn't include zero.
+
+
+## Randomized Block Design (Two-way ANOVA)
+```{r}
+rm(list = ls())
+IRS_2 <- read_csv("IRS 2.csv")
+```
+
+### a) Assess whether or not the normality condition is satisfied
+```{r}
+IRS_2_stacked <- cbind(IRS_2[1], stack(IRS_2[2:5]))
+names(IRS_2_stacked) <- c("Taxpayer", "Time", "Form")
+
+Time <- IRS_2_stacked$Time
+Form <- IRS_2_stacked$Form
+Taxpayer <- factor(IRS_2_stacked$Taxpayer)
+
+model_2 <- lm(Time ~ Form + Taxpayer)
+resi_2 <- residuals(model_2)
+pred_2 <- predict(model_2)
+```
+
+Formal Test: Anderson-Darling  
+$H_0$: the population is normally distributed  
+$H_1$: the population is not normally distributed
+```{r}
+nortest::ad.test(resi_2)
+```
+The p-value of Anderson-Darling test is 0.004, smaller than 0.05, which means the normality condition is not satisfied.
+
+Informal Test: Histogram
+```{r}
+hist(resi_2)
+```
+Considering the plot is basically bell-shaped and that F test is robust about normality, even though the normality condition is not strictly satisfied, we can still assume it is satisfied.
+
+
+### b) Assess whether or not the equal variances condition is met
+Equal variance test - Bartlett's test  
+$H_0$: $σ_t$ = $σ_F$  
+$H_1$: $σ_t$ ≠ $σ_F$
+```{r}
+bartlett.test(Time ~ Form)
+```
+
+$H_0$: $σ_t$ = $σ_T$  
+$H_1$: $σ_t$ ≠ $σ_T$
+```{r}
+bartlett.test(Time ~ Taxpayer)
+```
+Since the p-values of Bartlett test for both treatment (0.727) and blocks (0.072) are greater than 0.05, we fail to reject the null hypothesis that the variances are different, which means the model satisfies the constant variance condition.
+
+
+Residual vs. Fits plot
+```{r}
+plot(fitted(model_2), resi_2)
+```
+As we can see from the plot above, the variance of the residual is mainly constant.
+
+
+### c) Assess whether or not differences exist among the forms and if the blocking is effective
+```{r}
+ANOVA_2 <- aov(Time ~ Form + Taxpayer)
+summary(ANOVA_2)
+```
+
+The p-values for both treatments (Form) and blocks (Taxpayer) are overwhelmingly significant, from which we can conclude that there is difference among the four forms and blocking was meaningful.
+
+
+### e) Use the Tukey’s test to identify which forms are different
+```{r}
+TukeyHSD(ANOVA_2, which = "Form", ordered = T)
+```
+
+```{r}
+plot(TukeyHSD(ANOVA_2, which = "Form"), las = 1)
+```
+According to the result of Tukey's test, we can clearly find that except for Form 1 and Form 2, there are differences between all other forms.
+
+
+### f) Discuss the reasons why results of CRD and RBD are different
+In the CRD, inherent individual differences were not taken into consideration because each subject only took one form; but in the RBD, the differences between individuals were measured and so got excluded when we were analyzing the effect of treatment. Therefore, the statistical power of RBD is higher and the differences that were covered by individual differences in CRD were revealed. However, on the other hand, there were only 30 subjects in RBD, which is a relatively small sample size compared to 120 in CRD. It indicates a less generalizability of RBD in relation to the one of CRD. The impact is also indicated from the differences in SSE - SSE of CRD: 111480, SSE of RBD: 5764.
+
+
+## Complete Factorial Design (Two-factor ANOVA)
+```{r}
+rm(list = ls())
+IRS_3 <- read_csv("IRS 3.csv")
+```
+
+
+### a) Assess whether or not there is a statistically significant interaction
+```{r}
+# prepare the data
+IRS_3_stacked <- cbind(IRS_3[1], stack(IRS_3[2:5]))
+names(IRS_3_stacked) <- c("Group", "Time", "Form")
+
+Time <- IRS_3_stacked$Time
+Form <- IRS_3_stacked$Form
+Group <- factor(IRS_3_stacked$Group)
+```
+
+```{r}
+# build up the model and identify the interactions
+ANOVA_3 <- aov(Time ~ Form + Group + Form * Group)
+
+interaction.plot(Form, Group, Time)
+interaction.plot(Group, Form, Time)
+```
+
+According to the two interaction plots above, we can see that although lines are intersecting, the trends of lines are basically parallel. There seem to be very little interaction between the forms and income levels. We need p-value from the ANOVA output to have a more certain answer.
+
+```{r}
+summary(ANOVA_3)
+```
+
+According to the outcome of ANOVA, the p-value for the interaction is 0.40, much greater than 0.05. Therefore, we can conclude that at 5% significance level, the interaction between forms and income levels is not statistically significant.
+
+
+### b) Assess whether or not there are differences among forms
+The p-value for the forms is 0.0586, which is greater than 0.05. So we cannot conclude that differences exist among the four forms at 5% significance level.
+
+
+### c) Assess whether or not there are differences among income levels?
+The p-value for the income level is 0.019, which is smaller than 0.05. So, at 5% significance level, we can conclude that taxpayers in different brackets require different amount of time to complete their tax forms.
